@@ -1,4 +1,4 @@
-# Network Programming Learning Projects
+# TCP/UDP Chat Applications for Learning
 
 This repository contains a collection of chat applications implemented in various programming languages. The main purpose of these projects is to learn and practice:
 
