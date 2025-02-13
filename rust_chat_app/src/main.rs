@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::net::ToSocketAddrs;
+use std::process;
 
 mod client;
 mod server;
@@ -41,7 +42,10 @@ fn main() {
                 Ok(mut resolved) => {
                     if let Some(socket_addr) = resolved.next() {
                         println!("Starting server at {}", socket_addr);
-                        server::start_server(&socket_addr, passcode);
+                        if let Err(e) = server::start_server(socket_addr, passcode) {
+                            println!("Server failed to start: {e}");
+                            process::exit(1);
+                        }
                     }
                 }
                 Err(e) => eprintln!("Error resolving address: {}", e),
