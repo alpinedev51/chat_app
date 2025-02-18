@@ -1,5 +1,10 @@
 # TCP/UDP Chat Applications for Learning
 
+**WIP**
+TODO:
+- Multithreading in C chat app
+- Finish client side for rust chat application
+
 This repository contains a collection of chat applications implemented in various programming languages. The main purpose of these projects is to learn and practice:
 
 - TCP/UDP Protocol implementations
