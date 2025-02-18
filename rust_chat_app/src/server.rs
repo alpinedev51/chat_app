@@ -28,7 +28,7 @@ pub enum ServerError {
 
 // Server Configuration specifying the socket address, server passcode, and maximum number of
 // clients that can connect at the same time
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ServerConfig {
     socket_addr: SocketAddr,
     passcode: String,
@@ -85,15 +85,92 @@ impl ChatServer {
         }
     }
 
-    fn handle_client(&self, client: Client) -> Result<()> {
-        let mut clients = self
-            .active_clients
-            .lock()
-            .map_err(|e| ServerError::LockError(e.to_string()))?;
-        if clients.len() >= self.config.max_clients {
-            return Err(ServerError::ClientError("Maximum clients reached".into()));
+    fn handle_client(clients: &ClientMap, client_addr: SocketAddr) -> Result<()> {
+        loop {
+            let mut clients_lock = clients
+                .lock()
+                .map_err(|e| ServerError::LockError(e.to_string()))?;
+
+            let client = match clients_lock.get_mut(&client_addr) {
+                Some(client) => client,
+                None => {
+                    error!("Client {} not found in active clients", client_addr);
+                    return Ok(());
+                }
+            };
+
+            let mut buffer = [0u8; 1024];
+
+            match client.stream.read(&mut buffer) {
+                Ok(0) => {
+                    info!("Client {} disconnected", client_addr);
+                    clients_lock.remove(&client_addr);
+                    break;
+                }
+                Ok(n) => {
+                    let message = String::from_utf8_lossy(&buffer[..n]).trim().to_string();
+                    info!("Received message from {}: {}", client_addr, message);
+
+                    for (addr, other_client) in clients_lock.iter_mut() {
+                        if *addr != client_addr {
+                            if let Err(e) = other_client
+                                .stream
+                                .write_all(format!("{}: {}\n", client_addr, message).as_bytes())
+                            {
+                                error!("Failed to send message to {}: {}", addr, e);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error reading from client {}: {}", client_addr, e);
+                    clients_lock.remove(&client_addr);
+                    break;
+                }
+            }
+            // Release lock before next iteration
+            drop(clients_lock);
         }
-        clients.insert(client.addr, client);
+
+        Ok(())
+    }
+
+    fn handle_connection(&mut self, stream: TcpStream) -> Result<()> {
+        stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))?;
+
+        let mut client = Client::new(stream)?;
+        info!("New client connection: {}", client.addr);
+
+        self.authenticate_client(&mut client).map_err(|e| {
+            error!("Authentication failed for {}: {}", client.addr, e);
+            e
+        })?;
+        info!("Client authenticated successfully: {}", client.addr);
+
+        let active_clients = Arc::clone(&self.active_clients);
+        let max_clients = self.config.max_clients;
+        let client_addr = client.addr;
+
+        {
+            let mut clients = active_clients
+                .lock()
+                .map_err(|e| ServerError::LockError(e.to_string()))?;
+            if clients.len() >= max_clients {
+                error!("Maximum clients reached");
+                return Err(ServerError::MaxClientsReached);
+            }
+
+            info!("Client {} added to active clients", client_addr);
+            clients.insert(client_addr, client);
+        }
+
+        let handle = thread::spawn(move || {
+            if let Err(e) = ChatServer::handle_client(&active_clients, client_addr) {
+                error!("Error handling client {}: {}", client_addr, e);
+            }
+        });
+
+        self.threads.push(handle);
         Ok(())
     }
 
@@ -109,45 +186,6 @@ impl ChatServer {
         }
 
         client.stream.write_all(b"AUTH_SUCCESS\n")?;
-
-        Ok(())
-    }
-
-    fn handle_connection(&mut self, stream: TcpStream) -> Result<()> {
-        stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))?;
-
-        let mut client = Client::new(stream)?;
-        info!("New client connection: {}", client.addr);
-
-        self.authenticate_client(&mut client).map_err(|e| {
-            error!("Authentication failed for {}: {}", client.addr, e);
-            e
-        })?;
-
-        info!("Client authenticated successfully: {}", client.addr);
-
-        let active_clients = Arc::clone(&self.active_clients);
-        let max_clients = self.config.max_clients;
-
-        let handle = thread::spawn(move || {
-            let mut clients = match active_clients.lock() {
-                Ok(clients) => clients,
-                Err(e) => {
-                    error!("Failed to acquire lock: {}", e);
-                    return;
-                }
-            };
-
-            if clients.len() >= max_clients {
-                error!("Maximum clients reached");
-                return;
-            }
-
-            info!("Client {} added to active clients", client.addr);
-            clients.insert(client.addr, client);
-        });
-
-        self.threads.push(handle);
 
         Ok(())
     }
@@ -192,4 +230,48 @@ pub fn start_server(socket_addr: SocketAddr, passcode: &str) -> Result<()> {
         e
     })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpStream;
+    use std::thread;
+    use std::time::Duration;
+
+    fn setup_test_server() -> (ChatServer, SocketAddr) {
+        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let config = ServerConfig::new(addr, "testpass", 5).unwrap();
+        let server = ChatServer::new(config);
+        (server, addr)
+    }
+
+    #[test]
+    fn test_server_config_creation() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        assert!(addr.is_ipv4());
+        let config = ServerConfig::new(addr, "testpass", 5);
+        assert!(config.is_ok());
+
+        let config = ServerConfig::new(addr, "", 5);
+        assert!(matches!(config.unwrap_err(), ServerError::InvalidPasscode));
+
+        let config = ServerConfig::new(addr, "testpass", 0);
+        assert!(matches!(config.unwrap_err(), ServerError::InvalidConfig(_)));
+    }
+
+    #[test]
+    fn test_client_creation() {
+        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let listener = TcpListener::bind(addr).unwrap();
+        let server_addr = listener.local_addr().unwrap();
+
+        thread::spawn(move || {
+            listener.accept().unwrap();
+        });
+
+        let stream = TcpStream::connect(server_addr).unwrap();
+        let client = Client::new(stream);
+        assert!(client.is_ok());
+    }
 }
