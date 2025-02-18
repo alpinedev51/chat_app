@@ -53,6 +53,6 @@ Each project directory contains its own README with specific instructions for:
 ## Prerequisites
 
 Different projects require their respective language toolchains:
-- C: gcc/clang compiler
-- Rust: cargo and rustc
+- C: gcc and make
+- Rust: cargo
 - Python: Python >=3.10
