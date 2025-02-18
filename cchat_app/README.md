@@ -60,37 +60,6 @@ TCP segments are sent as internet diagrams. The Internet Protocol (IP) header ca
 
 A TCP header, followed by any user data in the segment, is formatted as follows, using the style from [66]:
 
-| Bit Position | 0-15          | 16-31        | 32-47        | 48-63        | 64-79        | 80-95        | 96-111       | 112-127      | 128-143      | 144-159      | 160-175      | 176-191      | 192-207      | 208-223      | 224-239      | 240-255      |
-|--------------|---------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|
-| **Field**    | Source Port   | Destination Port | Sequence Number | Acknowledgment Number | Data Offset | Reserved | Flags | Window | Checksum | Urgent Pointer | Options | Data |
-| **Description** | 16 bits      | 16 bits      | 32 bits      | 32 bits      | 4 bits      | 3 bits      | 9 bits | 16 bits | 16 bits | 16 bits | Variable | Variable |
-
-**Field Details:**
-
-1. **Source Port** (16 bits): The sending port.
-2. **Destination Port** (16 bits): The receiving port.
-3. **Sequence Number** (32 bits): The sequence number of the first byte in the data.
-4. **Acknowledgment Number** (32 bits): If the ACK flag is set, this field contains the value of the next sequence number the sender is expecting.
-5. **Data Offset** (4 bits): The size of the TCP header in 32-bit words. This tells where the data begins.
-6. **Reserved** (3 bits): Reserved for future use, must be set to 0.
-7. **Flags** (9 bits): 
-   - C: Congestion Window Reduced
-   - E: ECN-Echo
-   - U: Urgent Pointer field significant
-   - A: Acknowledgment
-   - P: Push Function
-   - R: Reset Connection
-   - S: Synchronize
-   - F: Finish
-8. **Window** (16 bits): The size of the sender's receive window (number of bytes that can be accepted).
-9. **Checksum** (16 bits): A checksum to detect data corruption.
-10. **Urgent Pointer** (16 bits): If the URG flag is set, this field is significant and indicates the last urgent byte.
-11. **Options** (Variable): Contains optional TCP header fields.
-12. **Data** (Variable): The actual payload data carried by the segment.
-
-*Note:* One tick mark represents one bit position.
-
-
  0                   1                   2                   3
     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
