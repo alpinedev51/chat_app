@@ -1,72 +1,12 @@
+use crate::config::client::{Client, ClientMap};
+use crate::config::server::ServerConfig;
+use crate::errors::server::{Result, ServerError};
 use log::{error, info};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
-use thiserror::Error;
-
-type ClientMap = Arc<Mutex<HashMap<SocketAddr, Client>>>;
-type Result<T> = std::result::Result<T, ServerError>;
-
-// Represents possible errors that can occur in the chat server
-#[derive(Debug, Error)]
-pub enum ServerError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Failed to acquire lock on client map: {0}")]
-    LockError(String),
-    #[error("Invalid passcode")]
-    InvalidPasscode,
-    #[error("Invalid config: {0}")]
-    InvalidConfig(String),
-    #[error("Maximum clients reached")]
-    MaxClientsReached,
-    #[error("Client error: {0}")]
-    ClientError(String),
-}
-
-// Server Configuration specifying the socket address, server passcode, and maximum number of
-// clients that can connect at the same time
-#[derive(Debug, Clone)]
-pub struct ServerConfig {
-    socket_addr: SocketAddr,
-    passcode: String,
-    max_clients: usize,
-}
-
-impl ServerConfig {
-    pub fn new(socket_addr: SocketAddr, passcode: &str, max_clients: usize) -> Result<Self> {
-        if passcode.is_empty() {
-            return Err(ServerError::InvalidPasscode);
-        }
-        if max_clients <= 0 {
-            return Err(ServerError::InvalidConfig(
-                "max_clients must be greater than 0".into(),
-            ));
-        }
-        Ok(ServerConfig {
-            socket_addr,
-            passcode: passcode.to_string(),
-            max_clients,
-        })
-    }
-}
-
-// Client struct that consolidates client related data. Namely the socket/tcp stream dedicated to
-// the client and the socket address it is bound to
-#[derive(Debug)]
-struct Client {
-    stream: TcpStream,
-    addr: SocketAddr,
-}
-
-impl Client {
-    fn new(stream: TcpStream) -> Result<(Self)> {
-        let addr = stream.peer_addr()?;
-        Ok(Self { stream, addr })
-    }
-}
 
 // Chat server struct which consolidates the server's configuration details, the active clients map
 // (shared across threads), and the vector of active threads
@@ -230,48 +170,4 @@ pub fn start_server(socket_addr: SocketAddr, passcode: &str) -> Result<()> {
         e
     })?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::net::TcpStream;
-    use std::thread;
-    use std::time::Duration;
-
-    fn setup_test_server() -> (ChatServer, SocketAddr) {
-        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let config = ServerConfig::new(addr, "testpass", 5).unwrap();
-        let server = ChatServer::new(config);
-        (server, addr)
-    }
-
-    #[test]
-    fn test_server_config_creation() {
-        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        assert!(addr.is_ipv4());
-        let config = ServerConfig::new(addr, "testpass", 5);
-        assert!(config.is_ok());
-
-        let config = ServerConfig::new(addr, "", 5);
-        assert!(matches!(config.unwrap_err(), ServerError::InvalidPasscode));
-
-        let config = ServerConfig::new(addr, "testpass", 0);
-        assert!(matches!(config.unwrap_err(), ServerError::InvalidConfig(_)));
-    }
-
-    #[test]
-    fn test_client_creation() {
-        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let listener = TcpListener::bind(addr).unwrap();
-        let server_addr = listener.local_addr().unwrap();
-
-        thread::spawn(move || {
-            listener.accept().unwrap();
-        });
-
-        let stream = TcpStream::connect(server_addr).unwrap();
-        let client = Client::new(stream);
-        assert!(client.is_ok());
-    }
 }

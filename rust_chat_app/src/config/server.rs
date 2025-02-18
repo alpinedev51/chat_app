@@ -1,13 +1,13 @@
-use log::error;
-use std::net::{SocketAddr, TcpStream};
+use crate::errors::server::{Result, ServerError};
+use std::net::SocketAddr;
 
 // Server Configuration specifying the socket address, server passcode, and maximum number of
 // clients that can connect at the same time
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ServerConfig {
-    socket_addr: SocketAddr,
-    passcode: String,
-    max_clients: usize,
+    pub(crate) socket_addr: SocketAddr,
+    pub(crate) passcode: String,
+    pub(crate) max_clients: usize,
 }
 
 impl ServerConfig {
@@ -25,20 +25,5 @@ impl ServerConfig {
             passcode: passcode.to_string(),
             max_clients,
         })
-    }
-}
-
-// Client struct that consolidates client related data. Namely the socket/tcp stream dedicated to
-// the client and the socket address it is bound to
-#[derive(Debug)]
-struct Client {
-    stream: TcpStream,
-    addr: SocketAddr,
-}
-
-impl Client {
-    fn new(stream: TcpStream) -> Result<(Self)> {
-        let addr = stream.peer_addr()?;
-        Ok(Self { stream, addr })
     }
 }

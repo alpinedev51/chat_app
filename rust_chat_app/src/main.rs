@@ -1,9 +1,7 @@
 use clap::{Parser, Subcommand};
+use rust_chat_app::{client, server};
 use std::net::ToSocketAddrs;
 use std::process;
-
-mod client;
-mod server;
 
 #[derive(Parser)]
 #[command(name = "tcp_chat")]

@@ -16,3 +16,5 @@ pub enum ServerError {
     #[error("Client error: {0}")]
     ClientError(String),
 }
+
+pub type Result<T> = std::result::Result<T, ServerError>;
