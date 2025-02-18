@@ -1,6 +1,6 @@
 # TCP/UDP Chat Applications for Learning
 
-**WIP**
+**WORK IN PROGRESS**
 
 TODO:
 - Multithreading in C chat app
