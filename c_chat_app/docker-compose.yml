@@ -1,0 +1,27 @@
+services:
+  server:
+    build:
+      context: ./src/server
+      dockerfile: Dockerfile
+    container_name: cchat_server
+    ports:
+      - "21000:21000" # Expose the server port to the host
+    networks:
+      - cchat_network
+    command: sh -c "make && ./server.out"
+
+  client:
+    build:
+      context: ./src/client
+      dockerfile: Dockerfile
+    container_name: cchat_client
+    networks:
+      - cchat_network
+    command: sh -c "make && ./client.out"
+    environment:
+      - SERVER_ADDRESS=cchat_server
+      - SERVER_PORT-21000
+
+networks:
+  cchat_network:
+    driver: bridge
