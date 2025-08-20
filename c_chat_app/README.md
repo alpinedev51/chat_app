@@ -1,4 +1,4 @@
-# cchat_app
+# c_chat_app
 Chat application implemented in C using TCP/UDP for learning about socket programming and concurrency.
 
 # Overview
